@@ -7,8 +7,6 @@
 // 19
 // 17
 
-#define FRAMES_PER_SECOND 60
-
 #define NUM_LEDS_PER_STRIP 300
 #define NUM_STRIPS 8
 #define OFFSET 0 //The current wiring has us starting in the middle
@@ -121,27 +119,49 @@ class Pulse : public Effect {
   public:
   uint16_t pos;
   uint16_t inner;
-  uint16_t width;
+  uint16_t outer;
   CRGB pos_color;
   CRGB inner_color;
-  Pulse(uint16_t p, uint16_t i, uint16_t w, CRGB pc, CRGB ic) {
+
+  uint8_t l;
+  uint8_t h;
+  
+  Pulse(uint16_t p, uint16_t i, uint16_t o, CRGB pc, CRGB ic) {
     pos = p;
     inner = i;
-    width = w;
+    outer = o;
     pos_color = pc;
     inner_color = ic;
+
+    if(ic == (CRGB) CRGB::Black) {
+      l = 255 / 16;
+      h = 255 * 10 / 16;
+    } else {
+      l = 255 / 4;
+      h = 255 * 3 /4;
+    }
   }
 
   void Run(Context *c) {
     //TODO: Doesn't wrap!
-    if (c->i == pos) {
+
+    // "Peak" of the pulse
+    if( c->i == (pos-1) || c->i == (pos+1) ) {
+      c->c = blend(inner_color, pos_color, l);
+    } else if (c->i == pos) {
       c->c = pos_color;
-    } else if ((pos - inner) <= c->i && c->i <= (pos + inner)) {
-      c->c = inner_color;
-    } else if ((pos - width) <= c->i && c->i <= (pos + width)) {
-      //In the pulse
-      fract8 percent = 255 - 255 * abs(pos - c->i) / width;
-      c->c = blend(c->c, inner_color, percent);
+    }
+
+    // "Trough"
+    else if( c->i >= (pos - 1 - inner) && c->i <= (pos + 1 + inner) ) {
+      c->c = inner_color; 
+    }
+
+    // "Slope" (25% trough to 75% trough)
+    else if( c->i >= (pos - 1 - inner - outer) && c->i <= (pos + 1 + inner + outer) ) {
+      const uint8_t d = abs(pos - c->i) - 1 - inner - 1;
+      fract8 percent = l + (h - l) * d / (outer - 1);
+      c->c = blend(inner_color, c->c, percent);
     }
   }
 };
@@ -157,20 +177,20 @@ Effect * compWheel[] = {
 
 Effect * comp0[] = {
   new Running(1),
-  new Pulse(15, 2, 6, CRGB::Yellow, CRGB::Green),
+  new Pulse(15, 2, 6, CRGB::Yellow, CRGB::Black),
   NULL
 };
 
 Effect * comp1[] = {
   new Running(1.5),
-  new Pulse(15, 2, 6, CRGB::Black, CRGB::White),
+  new Pulse(15, 2, 6, CRGB::Red, CRGB::Black),
   NULL
 };
 
 Effect * comp2[] = {
   //new RandomRunning(1,1),
   new Running(-1),
-  new Pulse(15, 8, 10, CRGB::White, CRGB::Black),
+  new Pulse(315, 4, 4, CRGB::Blue, CRGB::Black),
   NULL
 };
 
@@ -187,7 +207,6 @@ void MasterRaverBaiter() {
   uint16_t _t = (millis() - start_time);
 
   for (int _i = 0; _i < NUM_LEDS; _i++) {
-
     c.i = _i;
     c.t = _t/10;
     c.c = leds[_i];
@@ -300,7 +319,7 @@ void modeSelect(uint8_t forward, uint8_t backward) {
 }
 
 void loop() {
-  
+
   dimmer(0, 23);
   modeSelect(19, 17);
 
@@ -330,5 +349,4 @@ void loop() {
   }
 
   FastLED.show(); // display this frame
-  FastLED.delay(1000 / FRAMES_PER_SECOND);
 }
