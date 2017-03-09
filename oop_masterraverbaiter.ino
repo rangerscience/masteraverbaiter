@@ -115,6 +115,20 @@ class Wheel : public Effect {
   }
 };
 
+class Flicker : public Effect {
+  public:
+  uint8_t liviliness;
+
+  Flicker(uint8_t l) {
+    liviliness = l;
+  }
+
+  void Run(Context *c) {
+    uint8_t fade = ((uint8_t) c->t +  (uint8_t) c->i + (uint8_t) c->c) % liviliness;
+    c->c = blend(c->c, CRGB::Black, fade);
+  }
+};
+
 class Pulse : public Effect {
   public:
   uint16_t pos;
@@ -170,27 +184,33 @@ class Pulse : public Effect {
 Context c;
 
 Effect * compWheel[] = {
-  new Running(1),
+  new Running(0.75),
   new Wheel(),
   NULL,
 };
 
 Effect * comp0[] = {
   new Running(1),
-  new Pulse(15, 2, 6, CRGB::Yellow, CRGB::Black),
+  new Pulse(15, 2, 6, CRGB::White, CRGB::Black),
   NULL
 };
 
 Effect * comp1[] = {
-  new Running(1.5),
-  new Pulse(15, 2, 6, CRGB::Red, CRGB::Black),
+  new Running(3),
+  new Pulse(15, 2, 6, CRGB::White, CRGB::Black),
   NULL
 };
 
 Effect * comp2[] = {
   //new RandomRunning(1,1),
-  new Running(-1),
-  new Pulse(315, 4, 4, CRGB::Blue, CRGB::Black),
+  new Running(-2),
+  new Pulse(315, 4, 4, CRGB::White, CRGB::Black),
+  NULL
+};
+
+Effect * comp3[] = {
+  new Running(3),
+  new Pulse(25, 2, 6, CRGB::White, CRGB::Black),
   NULL
 };
 
@@ -199,7 +219,8 @@ Effect * effects[] = {
   new Composition(compWheel),
   new Composition(comp0),
   new Composition(comp1),
-  new Composition(comp2),
+  //new Composition(comp2),
+  new Flicker(100),
   NULL
 };
 
