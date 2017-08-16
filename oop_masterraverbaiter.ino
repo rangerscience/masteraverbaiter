@@ -2,10 +2,12 @@
 #include<OctoWS2811.h>
 #include <FastLED.h>
 #include <EEPROM.h>
+#include <Bounce2.h>
 
 // Notes
 // Added /Applications/Arduino.app/Contents/Java/hardware/teensy/avr/libraries/EEPROM/EEPROM.h:147 to use 'e' variable to suppress warning
 // Commented out /Users/nickbarone/Documents/Arduino/libraries/FastLED/FastLED.h:17 to suppress message
+// Added line 34 to /Applications/Arduino.app/Contents/Java/hardware/teensy/avr/libraries/Bounce2/Bounce2.cpp to supress warning
 
 // Basic strip settings
 
@@ -17,10 +19,11 @@
 
 // Button settings
 
-#define BRIGHTNESS_UP       0
-#define BRIGHTNESS_DOWN     23
-#define MODE_UP             19
-#define MODE_DOWN           17
+#define BRIGHTNESS_UP_PIN   0
+#define BRIGHTNESS_DOWN_PIN 23
+#define MODE_UP_PIN         19
+#define MODE_DOWN_PIN       17
+#define BOUNCE_INTERVAL     5 //ms
 
 // Menu Settings
 #define NUM_MODES           6
@@ -29,8 +32,12 @@
 
 CRGB      _LEDS[NUM_LEDS];
 int       _BRIGHTNESS =     32;
-uint8_t   _MODE =           0;
+int       _MODE =           0;
 uint16_t  _START_TIME;
+
+// Buttons!
+Bounce _MODE_UP         = Bounce();
+Bounce _MODE_DOWN       = Bounce();
 
 void setup() {
   delay(3000); // sanity delay
@@ -42,10 +49,22 @@ void setup() {
   pinMode(19, INPUT_PULLUP);
   pinMode(17, INPUT_PULLUP);
 
+  _MODE_UP.attach(MODE_UP_PIN);
+  _MODE_UP.interval(BOUNCE_INTERVAL);
+
+  _MODE_DOWN.attach(MODE_DOWN_PIN);
+  _MODE_DOWN.interval(BOUNCE_INTERVAL);
+
   int __BRIGHTNESS = 0;
   EEPROM.get(0, __BRIGHTNESS);
   if(__BRIGHTNESS != 0) {
     _BRIGHTNESS = __BRIGHTNESS;
+  }
+
+  int __MODE = 0;
+  EEPROM.get(2, __MODE);
+  if(__MODE != 0) {
+    _MODE = __MODE;
   }
 
   _START_TIME = millis();
@@ -302,33 +321,36 @@ void dimmer(uint8_t down, uint8_t up) {
   FastLED.setBrightness( _BRIGHTNESS );
 }
 
-int __MODE = 0;
-void modeSelect(uint8_t forward, uint8_t backward) {
-  uint8_t count = 50;
+void modeSelect(Bounce &forward, Bounce &backward) {
+  forward.update();
+  backward.update();
 
-  if(digitalRead(forward) == LOW) {
-    __MODE -= 1;
+  bool updated = false;
+  if(forward.rose()) {
+      _MODE++;
+      updated = true;
+  } else if (backward.rose()) {
+    _MODE--;
+    updated = true;
   }
 
-  if(digitalRead(backward) == LOW) {
-    __MODE += 1;
+  if(_MODE < 0) {
+    _MODE = NUM_MODES - 1;
   }
 
-  if(__MODE < 0) {
-    __MODE = 0;
-  }
-  
-  if(__MODE > NUM_MODES * count) {
-    __MODE = NUM_MODES * count;
+  if(_MODE >= NUM_MODES) {
+    _MODE = 0;
   }
 
-  _MODE = __MODE / (count);
+  if(updated) {
+    EEPROM.put(2, _MODE);
+  }
 }
 
 void loop() {
   
-  dimmer(BRIGHTNESS_UP, BRIGHTNESS_DOWN);
-  modeSelect(MODE_UP, MODE_DOWN);
+  dimmer(BRIGHTNESS_UP_PIN, BRIGHTNESS_DOWN_PIN);
+  modeSelect(_MODE_DOWN, _MODE_UP);
 
   if(_MODE == 0) {
     MasterRaverBaiter();
