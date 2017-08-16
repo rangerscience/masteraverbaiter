@@ -3,42 +3,52 @@
 #include <FastLED.h>
 #include <EEPROM.h>
 
+// Notes
+// Added /Applications/Arduino.app/Contents/Java/hardware/teensy/avr/libraries/EEPROM/EEPROM.h:147 to use 'e' variable to suppress warning
+// Commented out /Users/nickbarone/Documents/Arduino/libraries/FastLED/FastLED.h:17 to suppress message
 
-// 0
-// 23
-// 19
-// 17
+// Basic strip settings
 
-#define NUM_LEDS_PER_STRIP 300
-#define NUM_STRIPS 8
-#define OFFSET 0 //The current wiring has us starting in the middle
-#define CAP 360
+#define NUM_LEDS_PER_STRIP  300
+#define NUM_STRIPS          8
+#define OFFSET              0 //The current wiring has us starting in the middle
+#define CAP                 360
 #define NUM_LEDS NUM_LEDS_PER_STRIP * NUM_STRIPS
 
-CRGB leds[NUM_LEDS];
+// Button settings
 
-int BRIGHTNESS = 32;
-uint32_t NUM_MODES = 6;
-uint8_t MODE = 0; // Master
-uint16_t  start_time;
+#define BRIGHTNESS_UP       0
+#define BRIGHTNESS_DOWN     23
+#define MODE_UP             19
+#define MODE_DOWN           17
+
+// Menu Settings
+#define NUM_MODES           6
+
+// Global State
+
+CRGB      _LEDS[NUM_LEDS];
+int       _BRIGHTNESS =     32;
+uint8_t   _MODE =           0;
+uint16_t  _START_TIME;
 
 void setup() {
   delay(3000); // sanity delay
-  FastLED.addLeds<OCTOWS2811>(leds, NUM_LEDS_PER_STRIP);
-  FastLED.setBrightness( BRIGHTNESS );
+  FastLED.addLeds<OCTOWS2811>(_LEDS, NUM_LEDS_PER_STRIP);
+  FastLED.setBrightness( _BRIGHTNESS );
 
   pinMode(0, INPUT_PULLUP);
   pinMode(23, INPUT_PULLUP);
   pinMode(19, INPUT_PULLUP);
   pinMode(17, INPUT_PULLUP);
 
-  int _BRIGHTNESS = 0;
-  EEPROM.get(0, _BRIGHTNESS);
-  if(_BRIGHTNESS != 0) {
-    BRIGHTNESS = _BRIGHTNESS;
+  int __BRIGHTNESS = 0;
+  EEPROM.get(0, __BRIGHTNESS);
+  if(__BRIGHTNESS != 0) {
+    _BRIGHTNESS = __BRIGHTNESS;
   }
 
-  start_time = millis();
+  _START_TIME = millis();
 }
 
 // MASTERAVERBAITER
@@ -123,67 +133,31 @@ class Wheel : public Effect {
   }
 };
 
-class Flicker : public Effect {
-  public:
-  uint8_t liviliness;
-
-  Flicker(uint8_t l) {
-    liviliness = l;
-  }
-
-  void Run(Context *c) {
-    uint8_t fade = ((uint8_t) c->t +  (uint8_t) c->i + (uint8_t) c->c) % liviliness;
-    c->c = blend(c->c, CRGB::Black, fade);
-  }
-};
-
 class Pulse : public Effect {
   public:
   uint16_t pos;
   uint16_t inner;
-  uint16_t outer;
+  uint16_t width;
   CRGB pos_color;
   CRGB inner_color;
-
-  uint8_t l;
-  uint8_t h;
-  
-  Pulse(uint16_t p, uint16_t i, uint16_t o, CRGB pc, CRGB ic) {
+  Pulse(uint16_t p, uint16_t i, uint16_t w, CRGB pc, CRGB ic) {
     pos = p;
     inner = i;
-    outer = o;
+    width = w;
     pos_color = pc;
     inner_color = ic;
-
-    if(ic == (CRGB) CRGB::Black) {
-      l = 255 / 16;
-      h = 255 * 10 / 16;
-    } else {
-      l = 255 / 4;
-      h = 255 * 3 /4;
-    }
   }
 
   void Run(Context *c) {
     //TODO: Doesn't wrap!
-
-    // "Peak" of the pulse
-    if( c->i == (pos-1) || c->i == (pos+1) ) {
-      c->c = blend(inner_color, pos_color, l);
-    } else if (c->i == pos) {
+    if (c->i == pos) {
       c->c = pos_color;
-    }
-
-    // "Trough"
-    else if( c->i >= (pos - 1 - inner) && c->i <= (pos + 1 + inner) ) {
-      c->c = inner_color; 
-    }
-
-    // "Slope" (25% trough to 75% trough)
-    else if( c->i >= (pos - 1 - inner - outer) && c->i <= (pos + 1 + inner + outer) ) {
-      const uint8_t d = abs(pos - c->i) - 1 - inner - 1;
-      fract8 percent = l + (h - l) * d / (outer - 1);
-      c->c = blend(inner_color, c->c, percent);
+    } else if ((pos - inner) <= c->i && c->i <= (pos + inner)) {
+      c->c = inner_color;
+    } else if ((pos - width) <= c->i && c->i <= (pos + width)) {
+      //In the pulse
+      fract8 percent = 255 - 255 * abs(pos - c->i) / width;
+      c->c = blend(c->c, inner_color, percent);
     }
   }
 };
@@ -192,33 +166,27 @@ class Pulse : public Effect {
 Context c;
 
 Effect * compWheel[] = {
-  new Running(0.75),
+  new Running(1),
   new Wheel(),
   NULL,
 };
 
 Effect * comp0[] = {
   new Running(1),
-  new Pulse(15, 2, 6, CRGB::White, CRGB::Black),
+  new Pulse(15, 2, 6, CRGB::Yellow, CRGB::Green),
   NULL
 };
 
 Effect * comp1[] = {
-  new Running(3),
-  new Pulse(15, 2, 6, CRGB::White, CRGB::Black),
+  new Running(1.5),
+  new Pulse(15, 2, 6, CRGB::Black, CRGB::White),
   NULL
 };
 
 Effect * comp2[] = {
   //new RandomRunning(1,1),
-  new Running(-2),
-  new Pulse(315, 4, 4, CRGB::White, CRGB::Black),
-  NULL
-};
-
-Effect * comp3[] = {
-  new Running(3),
-  new Pulse(25, 2, 6, CRGB::White, CRGB::Black),
+  new Running(-1),
+  new Pulse(15, 8, 10, CRGB::White, CRGB::Black),
   NULL
 };
 
@@ -227,25 +195,25 @@ Effect * effects[] = {
   new Composition(compWheel),
   new Composition(comp0),
   new Composition(comp1),
-  //new Composition(comp2),
-  new Flicker(100),
+  new Composition(comp2),
   NULL
 };
 
 void MasterRaverBaiter() {
-  uint16_t _t = (millis() - start_time);
+  uint16_t _t = (millis() - _START_TIME);
 
   for (int _i = 0; _i < NUM_LEDS; _i++) {
+
     c.i = _i;
     c.t = _t/10;
-    c.c = leds[_i];
+    c.c = _LEDS[_i];
     
     
     for (uint8_t e = 0; effects[e] != NULL; e++) {
       effects[e]->Run(&c);
     }
 
-    leds[_i] = c.c;
+    _LEDS[_i] = c.c;
   }
 }
 
@@ -283,7 +251,7 @@ void Fire2012()
       } else {
         pixelnumber = j;
       }
-      leds[pixelnumber] = color;
+      _LEDS[pixelnumber] = color;
     }
 }
 
@@ -291,14 +259,14 @@ void Rainbow() {
   static uint8_t hue = 0;
   for(int i = 0; i < NUM_STRIPS; i++) {
     for(int j = 0; j < NUM_LEDS_PER_STRIP; j++) {
-      leds[(i*NUM_LEDS_PER_STRIP) + j] = CHSV((32*i) + hue+j,192,255);
+      _LEDS[(i*NUM_LEDS_PER_STRIP) + j] = CHSV((32*i) + hue+j,192,255);
     }
   }
 
   // Set the first n leds on each strip to show which strip it is
   for(int i = 0; i < NUM_STRIPS; i++) {
     for(int j = 0; j <= i; j++) {
-      leds[(i*NUM_LEDS_PER_STRIP) + j] = CRGB::Red;
+      _LEDS[(i*NUM_LEDS_PER_STRIP) + j] = CRGB::Red;
     }
   }
 
@@ -309,81 +277,81 @@ void dimmer(uint8_t down, uint8_t up) {
   bool updated = false;
   
   if(digitalRead(down) == LOW) {
-    BRIGHTNESS -= 1;
+    _BRIGHTNESS -= 1;
     updated = true;
   }
 
   if(digitalRead(up) == LOW) {
-    BRIGHTNESS += 1;
+    _BRIGHTNESS += 1;
     updated = true;
   }
 
-  if(BRIGHTNESS < 0) {
-    BRIGHTNESS = 0;
+  if(_BRIGHTNESS < 0) {
+    _BRIGHTNESS = 0;
     updated = true;
   }
-  if(BRIGHTNESS > 255) {
-    BRIGHTNESS = 255;
+  if(_BRIGHTNESS > 255) {
+    _BRIGHTNESS = 255;
     updated = true;
   }
 
   if(updated) {
-    EEPROM.put(0, BRIGHTNESS);
+    EEPROM.put(0, _BRIGHTNESS);
   }
   
-  FastLED.setBrightness( BRIGHTNESS );
+  FastLED.setBrightness( _BRIGHTNESS );
 }
 
-int _MODE = 0;
+int __MODE = 0;
 void modeSelect(uint8_t forward, uint8_t backward) {
   uint8_t count = 50;
 
   if(digitalRead(forward) == LOW) {
-    _MODE -= 1;
+    __MODE -= 1;
   }
 
   if(digitalRead(backward) == LOW) {
-    _MODE += 1;
+    __MODE += 1;
   }
 
-  if(_MODE < 0) {
-    _MODE = 0;
+  if(__MODE < 0) {
+    __MODE = 0;
   }
   
-  if(_MODE > NUM_MODES * count) {
-    _MODE = NUM_MODES * count;
+  if(__MODE > NUM_MODES * count) {
+    __MODE = NUM_MODES * count;
   }
 
-  MODE = _MODE / (count);
+  _MODE = __MODE / (count);
 }
 
 void loop() {
+  
+  dimmer(BRIGHTNESS_UP, BRIGHTNESS_DOWN);
+  modeSelect(MODE_UP, MODE_DOWN);
 
-  dimmer(0, 23);
-  modeSelect(19, 17);
-
-  if(MODE == 0) {
+  if(_MODE == 0) {
     MasterRaverBaiter();
   }
-  if(MODE == 1) {
+  if(_MODE == 1) {
     Rainbow();
   }
-  if(MODE == 2) {
+  if(_MODE == 2) {
     for( int i = 0; i < NUM_LEDS; i++) {
-      leds[i] = CRGB::Red;
+      _LEDS[i] = CRGB::Red;
     }
   }
-  if(MODE == 3) {
+  if(_MODE == 3) {
     for( int i = 0; i < NUM_LEDS; i++) {
-      leds[i] = CRGB::Blue;
+      _LEDS[i] = CRGB::Blue;
     }
   }
-  if(MODE == 4) {
+  if(_MODE == 4) {
     for( int i = 0; i < NUM_LEDS; i++) {
-      leds[i] = CRGB::Green;
+      _LEDS[i] = CRGB::Green;
     }
   }
-  if(MODE == 5) {
+  if(_MODE == 5) {
     Fire2012();
   }
 
