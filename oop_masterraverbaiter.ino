@@ -1,8 +1,13 @@
 #define USE_OCTOWS2811
+
+// 3rd Party Libs
 #include<OctoWS2811.h>
 #include <FastLED.h>
 #include <EEPROM.h>
 #include <Bounce2.h>
+
+// Our Libs
+#include "menu.h"
 
 // Notes
 // Added /Applications/Arduino.app/Contents/Java/hardware/teensy/avr/libraries/EEPROM/EEPROM.h:147 to use 'e' variable to suppress warning
@@ -292,65 +297,18 @@ void Rainbow() {
   hue++;
 }
 
-void dimmer(uint8_t down, uint8_t up) {
-  bool updated = false;
-  
-  if(digitalRead(down) == LOW) {
-    _BRIGHTNESS -= 1;
-    updated = true;
-  }
-
-  if(digitalRead(up) == LOW) {
-    _BRIGHTNESS += 1;
-    updated = true;
-  }
-
-  if(_BRIGHTNESS < 0) {
-    _BRIGHTNESS = 0;
-    updated = true;
-  }
-  if(_BRIGHTNESS > 255) {
-    _BRIGHTNESS = 255;
-    updated = true;
-  }
-
-  if(updated) {
-    EEPROM.put(0, _BRIGHTNESS);
-  }
-  
-  FastLED.setBrightness( _BRIGHTNESS );
-}
-
-void modeSelect(Bounce &forward, Bounce &backward) {
-  forward.update();
-  backward.update();
-
-  bool updated = false;
-  if(forward.rose()) {
-      _MODE++;
-      updated = true;
-  } else if (backward.rose()) {
-    _MODE--;
-    updated = true;
-  }
-
-  if(_MODE < 0) {
-    _MODE = NUM_MODES - 1;
-  }
-
-  if(_MODE >= NUM_MODES) {
-    _MODE = 0;
-  }
-
-  if(updated) {
-    EEPROM.put(2, _MODE);
-  }
-}
 
 void loop() {
   
-  dimmer(BRIGHTNESS_UP_PIN, BRIGHTNESS_DOWN_PIN);
-  modeSelect(_MODE_DOWN, _MODE_UP);
+  if(dimmer(BRIGHTNESS_UP_PIN, BRIGHTNESS_DOWN_PIN, _BRIGHTNESS)) {
+    EEPROM.put(0, _BRIGHTNESS);
+    FastLED.setBrightness( _BRIGHTNESS );
+  }
+
+  if(modeSelect(_MODE_DOWN, _MODE_UP, _MODE, NUM_MODES)) {
+    EEPROM.put(2, _MODE);
+  }
+  
 
   if(_MODE == 0) {
     MasterRaverBaiter();
