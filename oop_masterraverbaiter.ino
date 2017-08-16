@@ -1,6 +1,8 @@
 #define USE_OCTOWS2811
 #include<OctoWS2811.h>
 #include <FastLED.h>
+#include <EEPROM.h>
+
 
 // 0
 // 23
@@ -29,6 +31,12 @@ void setup() {
   pinMode(23, INPUT_PULLUP);
   pinMode(19, INPUT_PULLUP);
   pinMode(17, INPUT_PULLUP);
+
+  int _BRIGHTNESS = 0;
+  EEPROM.get(0, _BRIGHTNESS);
+  if(_BRIGHTNESS != 0) {
+    BRIGHTNESS = _BRIGHTNESS;
+  }
 
   start_time = millis();
 }
@@ -298,19 +306,29 @@ void Rainbow() {
 }
 
 void dimmer(uint8_t down, uint8_t up) {
+  bool updated = false;
+  
   if(digitalRead(down) == LOW) {
     BRIGHTNESS -= 1;
+    updated = true;
   }
 
   if(digitalRead(up) == LOW) {
     BRIGHTNESS += 1;
+    updated = true;
   }
 
   if(BRIGHTNESS < 0) {
     BRIGHTNESS = 0;
+    updated = true;
   }
   if(BRIGHTNESS > 255) {
     BRIGHTNESS = 255;
+    updated = true;
+  }
+
+  if(updated) {
+    EEPROM.put(0, BRIGHTNESS);
   }
   
   FastLED.setBrightness( BRIGHTNESS );
