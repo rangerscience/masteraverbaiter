@@ -13,11 +13,12 @@
 
 // Basic strip settings
 
-#define NUM_LEDS_PER_STRIP  300
-#define NUM_STRIPS          8
+#define NUM_LEDS_PER_STRIP  30
+#define NUM_STRIPS          1
 #define OFFSET              0 //The current wiring has us starting in the middle
-#define CAP                 360
+#define CAP                 30
 #define NUM_LEDS NUM_LEDS_PER_STRIP * NUM_STRIPS
+#define FRAMES_PER_SECOND   120
 
 // Button settings
 
@@ -34,7 +35,7 @@
 
 CRGB      _LEDS[NUM_LEDS]   ;
 int       _BRIGHTNESS =     32;
-int       _MODE =           0;
+int       _MODE =           4;
 uint16_t  _START_TIME       ;
 
 // Buttons!
@@ -116,4 +117,11 @@ void loop() {
   }
 
   FastLED.show(); // display this frame
+
+  //Dithering
+  FastLED.delay(1000 / FRAMES_PER_SECOND);
+  FastLED.setBrightness(0);
+  FastLED.delay(1000 / (FRAMES_PER_SECOND * 6));
+  FastLED.setBrightness(_BRIGHTNESS);
+  
 }
